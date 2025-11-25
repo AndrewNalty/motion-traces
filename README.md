@@ -12,7 +12,7 @@ The automation controls `light.area_en_suite` based on motion detection from `bi
 - **Trigger**: Motion sensor occupancy (`binary_sensor.en_suite_motion_occupancy`)
 - **Controlled Light**: `light.area_en_suite`
 - **Mode**: `restart` (restarts if triggered again while running)
-- **Time Delay**: 10 seconds (before turning off after motion stops)
+- **Time Delay**: 10 seconds (configured motion timeout)
 - **Dim Before Off**: Enabled (15 second warning dim)
 
 ### Trace Timeline
@@ -22,10 +22,10 @@ The automation controls `light.area_en_suite` based on motion detection from `bi
 | 15:17:49.749 | Automation triggered by motion sensor state change |
 | 15:17:49.756 | All 7 conditions evaluated (all passed ✓) |
 | 15:17:49.764 | Action started - chose "default" path |
-| 15:17:49.819 | Light service called: `light.turn_on` with brightness_pct=0 |
+| 15:17:49.819 | Light service called: `light.turn_on` with brightness_pct=0 (see issue below) |
 | 15:17:49.836 | Parallel sequences started for light control and dynamic lighting |
 | 15:18:49.824 | Repeat loop completed (light off check) |
-| 15:18:56.974 | Final delay started (600 seconds = 10 minutes) |
+| 15:18:56.974 | Internal delay started (600s = 10min, blueprint internal timing) |
 
 ### Current State
 
@@ -44,13 +44,13 @@ All initial conditions passed:
 
 Based on the blueprint inputs, this automation has these features enabled:
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| **Light Control** | Brightness + Transition | 100% brightness, 1s on, 2s off transition |
-| **Dim Before Off** | Enabled | 50% dim, 15 second delay before off |
-| **Dynamic Lighting** | Time-controlled brightness | Min 22%, adjusts 07:00-09:00 and 21:00-23:50 |
-| **Ambient Light** | Enabled | Sensor: `sensor.en_suite_motion_illuminance`, threshold: 40 lux |
-| **Night Lights** | Enabled | 23:50-07:00, 1% brightness, 6s transition off |
+| Feature | Status | Configured Value | Actual in Trace |
+|---------|--------|------------------|-----------------|
+| **Light Control** | Brightness + Transition | 100% brightness, 1s on, 2s off | **0% brightness** (see issue below) |
+| **Dim Before Off** | Enabled | 50% dim, 15 second delay | - |
+| **Dynamic Lighting** | Time-controlled brightness | Min 22% | - |
+| **Ambient Light** | Enabled | Threshold: 40 lux | Passed |
+| **Night Lights** | Enabled | 23:50-07:00, 1% brightness | Not active (time was 15:17) |
 
 ### What Happened in This Trace
 
@@ -63,12 +63,17 @@ Based on the blueprint inputs, this automation has these features enabled:
    - ⚠️ **Note**: The brightness is set to 0%, which would effectively turn the light off or very dim
 5. **Delay Active** - Currently waiting in a 600-second delay before completing
 
-### Potential Issue
+### ⚠️ Potential Issue: brightness_pct=0
 
-The trace shows the light being turned on with `brightness_pct: 0`, which seems unexpected. This could indicate:
-- The dynamic lighting calculation resulted in 0% brightness
-- A configuration issue with the brightness settings
-- The automation may be in a dim/off transition phase
+The trace shows the light being turned on with `brightness_pct: 0`, which contradicts the configured 100% brightness. This is likely a bug or unexpected behavior.
+
+**Possible causes:**
+- The automation was in a **dim-before-off phase** (dimming down before turn-off)
+- A **dynamic lighting calculation error** resulted in 0%
+- The light was already **being turned off** when this service call was made
+- **Blueprint internal logic** may have overridden the configured brightness
+
+**Investigation suggestion:** Check if the light actually responded to this call, or if subsequent calls corrected the brightness.
 
 ### Trace File
 
